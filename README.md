@@ -34,7 +34,7 @@ The brute-force attempts are conducted using a text file provided as input to th
 Clone the repository and configure the `config.ini` file with the necessary paths and settings.
 
 ```bash
-git clone https://github.com/yourusername/veracrypt-bruteforcer.git
+git clone https://github.com/giorizzotti/VeraCryptBruteForcer.git
 cd veracrypt-bruteforcer
 pip install -r requirements.txt
 # Edit config.ini with your settings
@@ -70,3 +70,7 @@ Contributions are welcome! Feel free to fork the repository, make improvements, 
 
 ## License
 This project is licensed under the GNU General Public License (GPL).
+
+## Contact
+Author: Giovanni Rizzotti
+Email: giorizzotti@gmail.com
