@@ -106,11 +106,14 @@ def try_password(password, encrypted_volume, success_found, output_queue, total_
     # Calculate processing speed
     current_time = timeit.default_timer()
     elapsed_time = current_time - START_TIME
-    processing_speed = PROCESSED_PASSWORDS / elapsed_time
+    processing_speed = PROCESSED_PASSWORDS / elapsed_time 
 
+    # Calculate estimated remaining time in seconds
+    remaining_time_minutes = (passwords_remaining) // processing_speed // 60 if processing_speed > 1 else passwords_remaining // 60
+   
     logging.info(f"Progress: {PROCESSED_PASSWORDS}/{total_passwords} passwords tried. "
-                 f"({percentage_completed:.2f}%), {passwords_remaining} passwords remaining. "
-                 f"Processing speed: {processing_speed:.2f} passwords per second")
+                 f"Processing speed: {processing_speed:.2f} passwords per second. "
+                 f"({percentage_completed:.2f}%), {passwords_remaining} passwords and {remaining_time_minutes} minutes remaining. ")
 
     success, error_message = mount_volume(password, encrypted_volume, success_found, hash_type)
     if success:
@@ -146,8 +149,8 @@ def try_passwords(passwords, encrypted_volume, success_found, output_queue, hash
 
 def main():
     global MAX_PARALLEL_THREADS
-    global START_TIME
-
+    global START_TIME 
+    
     parser = argparse.ArgumentParser(description="VeraCrypt BruteForcer is a Python script designed for educational and testing purposes, allowing users to systematically test passwords for VeraCrypt-encrypted volumes. This multi-threaded script leverages the power of parallel processing to test a large set of passwords concurrently, making it faster and more effective.")
     parser.add_argument("--password_file", required=True, help="Path to the file containing passwords to test.")
     parser.add_argument("--encrypted_volume", required=True, help="Path to the encrypted volume.")
