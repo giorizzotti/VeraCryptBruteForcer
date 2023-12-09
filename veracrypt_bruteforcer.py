@@ -22,15 +22,31 @@ FOUND_PASSWORD_FILE = config['Configuration']['FOUND_PASSWORD_FILE']
 TESTED_PASSWORDS_FILE = config['Configuration']['TESTED_PASSWORDS_FILE']
 MAX_PARALLEL_THREADS = int(config['Configuration']['MAX_PARALLEL_THREADS'])
 LOG_FILE = config['Configuration']['LOG_FILE']
+LOG_TO_FILE_ENABLED = config['Configuration'].getboolean('LOG_TO_FILE_ENABLED', fallback=True)
 
 # Other global variables
 PROCESSED_PASSWORDS = 0
 START_TIME = timeit.default_timer()  # Variable to store the start time for measuring processing speed
-
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s',
-                    handlers=[logging.StreamHandler(), logging.FileHandler(LOG_FILE)])
-
 file_write_lock = threading.Lock()
+
+def configure_logging():
+    log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    # Remove default logging
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+        
+    if LOG_TO_FILE_ENABLED:
+        file_handler = logging.FileHandler(LOG_FILE)
+        file_handler.setFormatter(log_formatter)
+        logger.addHandler(file_handler)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+    logger.addHandler(console_handler)
 
 def check_prerequisites(password_file, encrypted_volume, hash_type):
     # Check if the VeraCrypt executable exists
@@ -111,10 +127,12 @@ def try_password(password, encrypted_volume, success_found, output_queue, total_
     # Calculate estimated remaining time in seconds
     remaining_time_minutes = (passwords_remaining) // processing_speed // 60 if processing_speed > 1 else passwords_remaining // 60
    
-    logging.info(f"Progress: {PROCESSED_PASSWORDS}/{total_passwords} passwords tried. "
-                 f"Processing speed: {processing_speed:.2f} passwords per second. "
-                 f"({percentage_completed:.2f}%), {passwords_remaining} passwords and {remaining_time_minutes} minutes remaining. ")
+    log_message = f"Progress: {PROCESSED_PASSWORDS}/{total_passwords} passwords tried. " \
+                  f"Processing speed: {processing_speed:.2f} passwords per second. " \
+                  f"({percentage_completed:.2f}%), {passwords_remaining} passwords and {remaining_time_minutes} minutes remaining. "
 
+    logging.info(log_message)
+    
     success, error_message = mount_volume(password, encrypted_volume, success_found, hash_type)
     if success:
         logging.info(f"Password found: {password}")
@@ -131,21 +149,40 @@ def try_passwords(passwords, encrypted_volume, success_found, output_queue, hash
         futures = {executor.submit(try_password, p, encrypted_volume, success_found, output_queue, len(passwords),
                                    hash_type): p for p in passwords}
 
-        while futures:
+        while futures and not success_found.is_set():
             done, _ = wait(futures, return_when=FIRST_COMPLETED)
             for future in done:
+                result = future.result()
                 del futures[future]
-
-        while not output_queue.empty():
-            success, correct_password, error_message = output_queue.get()
-            if success:
-                logging.info(f"Password found: {correct_password}")
-                write_password_to_file(FOUND_PASSWORD_FILE, correct_password)  # Write the found password to the file
-                return True, correct_password
-            else:
-                logging.error(f"Failed with password '{correct_password}': {error_message}")
+                success, value = result
+                if success:
+                    correct_password, error_message = value, None
+                    logging.info(f"Password found: {correct_password}")
+                    write_password_to_file(FOUND_PASSWORD_FILE, correct_password)  # Write the found password to the file
+                    return True, correct_password
+                else:
+                    correct_password, error_message = value, None
+                    logging.error(f"Failed with password '{correct_password}': {error_message}")
 
     return False, None
+
+def create_backup(original_file):
+    # Get the file name without extension
+    file_name, file_extension = os.path.splitext(original_file)
+
+    # Create a copy with the original name and a timestamp in the specified directory
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_file = os.path.join(BACKUP_DIRECTORY, f"{file_name}_{timestamp}{file_extension}")
+
+    shutil.copy(original_file, backup_file)
+    logging.info(f"Backup created: {backup_file}")
+
+def write_password_to_file(file_path, password):
+    with file_write_lock:
+        with Path(file_path).open("a") as file:
+            if file.tell() != 0:
+                file.write("\n")
+            file.write(password)
 
 def main():
     global MAX_PARALLEL_THREADS
@@ -165,6 +202,9 @@ def main():
 
     # Check prerequisites
     check_prerequisites(args.password_file, args.encrypted_volume, args.hash_type)
+
+    # Configure logging
+    configure_logging()
 
     # Read passwords to test from the input file
     with Path(args.password_file).open('r') as file:
@@ -188,6 +228,7 @@ def main():
         f"MOUNT POINT: {MOUNT_POINT}\n"
         f"NUMBER OF PASSWORD TO TEST: {len(password_to_test_set)}\n"
         f"NUMBER OF PASSWORD TESTED: {len(tested_password_set)}\n"
+        f"LOG TO FILE ENABLED: {LOG_TO_FILE_ENABLED}\n"
         f"=============================================================================================="
     )
 
@@ -209,24 +250,6 @@ def main():
         logging.info(f"Successfully mounted the volume with password: {correct_password}")
     else:
         logging.info("Unable to mount the volume with any of the provided passwords.")
-
-def create_backup(original_file):
-    # Get the file name without extension
-    file_name, file_extension = os.path.splitext(original_file)
-
-    # Create a copy with the original name and a timestamp in the specified directory
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup_file = os.path.join(BACKUP_DIRECTORY, f"{file_name}_{timestamp}{file_extension}")
-
-    shutil.copy(original_file, backup_file)
-    logging.info(f"Backup created: {backup_file}")
-
-def write_password_to_file(file_path, password):
-    with file_write_lock:
-        with Path(file_path).open("a") as file:
-            if file.tell() != 0:
-                file.write("\n")
-            file.write(password)
 
 if __name__ == "__main__":
     main()
