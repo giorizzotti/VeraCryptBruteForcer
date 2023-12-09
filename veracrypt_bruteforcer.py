@@ -25,8 +25,9 @@ LOG_FILE = config['Configuration']['LOG_FILE']
 
 # Other global variables
 PROCESSED_PASSWORDS = 0
+START_TIME = timeit.default_timer()  # Variable to store the start time for measuring processing speed
 
-logging.basicConfig(level=-logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s',
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s',
                     handlers=[logging.StreamHandler(), logging.FileHandler(LOG_FILE)])
 
 file_write_lock = threading.Lock()
@@ -92,6 +93,7 @@ def mount_volume(password, encrypted_volume, success_found, hash_type):
 
 def try_password(password, encrypted_volume, success_found, output_queue, total_passwords, hash_type):
     global PROCESSED_PASSWORDS  # Global declaration here
+    global START_TIME  # Reference to the global variable
 
     logging.debug(f"Trying password: {password}")
 
@@ -101,7 +103,14 @@ def try_password(password, encrypted_volume, success_found, output_queue, total_
     # Calculate the remaining passwords
     passwords_remaining = total_passwords - PROCESSED_PASSWORDS
 
-    logging.info(f"Progress: {PROCESSED_PASSWORDS}/{total_passwords} passwords tried ({percentage_completed:.2f}%), {passwords_remaining} passwords remaining")
+    # Calculate processing speed
+    current_time = timeit.default_timer()
+    elapsed_time = current_time - START_TIME
+    processing_speed = PROCESSED_PASSWORDS / elapsed_time
+
+    logging.info(f"Progress: {PROCESSED_PASSWORDS}/{total_passwords} passwords tried. "
+                 f"({percentage_completed:.2f}%), {passwords_remaining} passwords remaining. "
+                 f"Processing speed: {processing_speed:.2f} passwords per second")
 
     success, error_message = mount_volume(password, encrypted_volume, success_found, hash_type)
     if success:
@@ -137,7 +146,8 @@ def try_passwords(passwords, encrypted_volume, success_found, output_queue, hash
 
 def main():
     global MAX_PARALLEL_THREADS
-    
+    global START_TIME
+
     parser = argparse.ArgumentParser(description="VeraCrypt BruteForcer is a Python script designed for educational and testing purposes, allowing users to systematically test passwords for VeraCrypt-encrypted volumes. This multi-threaded script leverages the power of parallel processing to test a large set of passwords concurrently, making it faster and more effective.")
     parser.add_argument("--password_file", required=True, help="Path to the file containing passwords to test.")
     parser.add_argument("--encrypted_volume", required=True, help="Path to the encrypted volume.")
@@ -152,8 +162,6 @@ def main():
 
     # Check prerequisites
     check_prerequisites(args.password_file, args.encrypted_volume, args.hash_type)
-
-    start_time = timeit.default_timer()
 
     # Read passwords to test from the input file
     with Path(args.password_file).open('r') as file:
@@ -189,7 +197,7 @@ def main():
 
     success, correct_password = try_passwords(password_to_test_set, args.encrypted_volume, success_found, output_queue,
                                               args.hash_type)
-    elapsed_time = timeit.default_timer() - start_time
+    elapsed_time = timeit.default_timer() - START_TIME
 
     logging.info(f"Number of passwords tested: {len(password_to_test_set)}")
     logging.info(f"Total time elapsed: {elapsed_time:.2f} seconds")
