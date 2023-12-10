@@ -135,12 +135,8 @@ def try_password(password, encrypted_volume, success_found, output_queue, total_
     
     success, error_message = mount_volume(password, encrypted_volume, success_found, hash_type)
     if success:
-        logging.info(f"Password found: {password}")
-        write_password_to_file(FOUND_PASSWORD_FILE, password)
         return True, password
-    else:
-        logging.error(f"Failed with password '{password}': {error_message}")
-
+    
     PROCESSED_PASSWORDS += 1
     output_queue.put((success, password, error_message))
 
