@@ -20,6 +20,8 @@ The brute-force attempts are conducted using a text file provided as input to th
 
 - **Detailed Logging:** The script provides detailed logs, including progress updates, success/failure information, and timestamps, aiding in analysis and troubleshooting.
 
+- **Benchmark Mode:** Launch the script in benchmark mode with the --benchmark, it will run a benchmark to test multi-thread performances. Number of test for each iteration and number of parallel threads are configurable in the INI file.
+
 ## Usage
 
 ### Prerequisites
@@ -63,6 +65,7 @@ options:
                         Number of max parallel threads execution.
   --hash_type {BLAKE2s-256,SHA-256,SHA-512,Whirlpool,Streebog}
                         Hash algorithm type. If none is specified, all of these will be tested.
+  --benchmark           Run the script in benchmark mode.
 ```
 
 ## Contributions
